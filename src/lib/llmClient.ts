@@ -1,9 +1,7 @@
 // lib/llmClient.ts
 // WebLLMを初期化＆プロンプト送信するラッパ
 import {
-  type MLCEngine,
   type InitProgressCallback,
-  type Chat,
   type MLCEngineInterface,
   CreateMLCEngine,
   modelLibURLPrefix,
@@ -13,88 +11,138 @@ import {
 // WebGPU型定義
 declare global {
   interface Navigator {
-    gpu: {
-      requestAdapter(): Promise<any>;
+    gpu?: {
+      requestAdapter(): Promise<GPUAdapter | null>;
     };
+  }
+
+  interface GPUAdapter {
+    requestAdapterInfo(): Promise<GPUAdapterInfo>;
+  }
+
+  interface GPUAdapterInfo {
+    vendor: string;
+    architecture: string;
+    device: string;
+    description: string;
   }
 }
 
 let llmEngine: MLCEngineInterface | null = null;
 let isInitializing = false;
 
+// モデル初期化中のエラーをより詳細に表示するためのデバッグフラグ
+const DEBUG = true;
+
+// 実行環境の種類を定義
+type RuntimeEnvironment = 'webgpu' | 'wasm';
+
+// 現在の実行環境
+let currentRuntime: RuntimeEnvironment = 'wasm';
+
 /**
- * WebGPUのサポートを確認
+ * WebGPUのサポートを確認し、利用可能な実行環境を決定
  */
-async function checkWebGPUSupport(): Promise<boolean> {
-  if (!navigator.gpu) {
-    throw new Error("このブラウザはWebGPUをサポートしていません。Chrome 113以降を使用してください。");
+async function detectRuntime(): Promise<RuntimeEnvironment> {
+  if (typeof window === "undefined") {
+    return 'wasm'; // SSR環境ではWasmを使用
   }
 
   try {
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) {
-      throw new Error("WebGPUアダプターの取得に失敗しました。GPUドライバーを更新してください。");
+    if (!navigator.gpu) {
+      console.log("WebGPUは利用できません。WebAssemblyを使用します。");
+      return 'wasm';
     }
-    return true;
+
+    console.log("WebGPUアダプターをチェック中...");
+    const adapter = await navigator.gpu.requestAdapter();
+
+    if (!adapter) {
+      console.log("WebGPUアダプターを取得できません。WebAssemblyを使用します。");
+      return 'wasm';
+    }
+
+    // アダプターの情報を表示（デバッグ用）
+    if (DEBUG) {
+      const info = await adapter.requestAdapterInfo();
+      console.log("WebGPUアダプター情報:", info);
+    }
+
+    console.log("WebGPUが利用可能です。");
+    return 'webgpu';
   } catch (error) {
-    console.error("WebGPUの初期化エラー:", error);
-    throw new Error("WebGPUの初期化に失敗しました。ハードウェアアクセラレーションが有効か確認してください。");
+    console.log("WebGPUの初期化に失敗しました。WebAssemblyを使用します。", error);
+    return 'wasm';
   }
 }
 
 /**
  * TinySwallow 1.5B Instruct モデルを初期化する
  */
-export async function initWebLLM() {
+export async function initWebLLM(modelName: string) {
   if (typeof window === "undefined") {
-    // SSR環境での呼び出しは不可
-    return;
+    return; // SSR環境での呼び出しは不可
   }
+
   if (isInitializing) {
-    // TODO: UIに進捗を表示する
     throw new Error("モデルの初期化がすでに実行中です。");
   }
 
   try {
     isInitializing = true;
 
-    // WebGPU サポート確認
-    await checkWebGPUSupport();
+    // 利用可能な実行環境を検出
+    currentRuntime = await detectRuntime();
+    console.log(`実行環境: ${currentRuntime}`);
 
-    console.log("TinySwallowモデルを WebLLM で初期化中...");
+    // モデル設定を構築
+    const modelConfig = {
+      webgpu: {
+        model: "https://huggingface.co/SakanaAI/TinySwallow-1.5B-Instruct-q4f32_1-MLC",
+        model_lib: `${modelLibURLPrefix}${modelVersion}/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm`,
+      },
+      wasm: {
+        model: "https://huggingface.co/SakanaAI/TinySwallow-1.5B-Instruct-q4f32_1-MLC",
+        model_lib: `${modelLibURLPrefix}${modelVersion}/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-wasm.wasm`,
+      },
+    };
 
+    const selectedConfig = modelConfig[currentRuntime];
     const appConfig = {
       model_list: [
         {
-          model: "https://huggingface.co/SakanaAI/TinySwallow-1.5B-Instruct-q4f32_1-MLC",
-          model_id: "TinySwallow-1.5B",
-          model_lib:
-          // https://github.com/mlc-ai/binary-mlc-llm-libs/tree/main/web-llm-models/v0_2_48
-              modelLibURLPrefix +
-              modelVersion +
-              "/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
+          model: selectedConfig.model,
+          model_id: modelName,
+          model_lib: selectedConfig.model_lib,
         },
       ],
     };
 
+    if (DEBUG) {
+      console.log("モデル設定:", JSON.stringify(appConfig, null, 2));
+    }
+
     const updateEngineInitProgressCallback: InitProgressCallback = (progress) => {
-      // TODO: UIに進捗を表示する
-      console.log("モデル初期化中:", progress);
+      console.log(`モデル初期化中 (${currentRuntime}):`, progress);
     };
 
     // エンジン作成＆モデル読み込み
-    llmEngine = await CreateMLCEngine("TinySwallow-1.5B", {
+    llmEngine = await CreateMLCEngine(modelName, {
       appConfig: appConfig,
       initProgressCallback: updateEngineInitProgressCallback,
     });
 
     if (!llmEngine || !llmEngine.chat) {
-      throw new Error("TinySwallow 1.5B モデルの初期化に失敗しました。");
+      throw new Error("モデルの初期化に失敗しました。");
     }
-    console.log("TinySwallow 1.5B モデルの初期化が完了しました！");
-  } catch (e: unknown) {
-    console.error("TinySwallowモデルの初期化中にエラーが発生:", e);
-    throw e;
+
+    console.log(`モデルの初期化が完了しました！(${currentRuntime})`);
+  } catch (error: unknown) {
+    console.error("モデルの初期化中にエラーが発生:", error);
+    if (DEBUG) {
+      console.log("エラーの詳細:", JSON.stringify(error, null, 2));
+    }
+    throw error;
   } finally {
     isInitializing = false;
   }
@@ -143,8 +191,9 @@ ${rawText}
       throw new Error("LLMからの応答が空でした");
     }
 
-    // 出力形式の検証
-    if (!content.includes('-')) {
+    // 出力形式の検証 - 少なくとも1つの「- スライドテキスト」形式の行があるかチェック
+    const slideLineRegex = /^- .+$/m;
+    if (!slideLineRegex.test(content)) {
       throw new Error("高橋メソッド形式への変換に失敗しました");
     }
 

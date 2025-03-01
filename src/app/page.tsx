@@ -15,6 +15,7 @@ export default function HomePage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [runtime, setRuntime] = useState<'webgpu' | 'wasm' | null>(null);
 
   // WebLLM初期化
   useEffect(() => {
@@ -24,7 +25,28 @@ export default function HomePage() {
       try {
         setIsLoading(true);
         setError(null);
+
+        // コンソールログを監視してランタイムを検出
+        const originalConsoleLog = console.log;
+        console.log = function(...args) {
+          originalConsoleLog.apply(console, args);
+
+          // ランタイムの検出
+          if (args.length > 0 && typeof args[0] === 'string') {
+            if (args[0].includes('実行環境: wasm')) {
+              setRuntime('wasm');
+              setError(null);
+            } else if (args[0].includes('実行環境: webgpu')) {
+              setRuntime('webgpu');
+              setError(null);
+            }
+          }
+        };
+
         await initWebLLM(MODEL_NAME);
+
+        // コンソールログを元に戻す
+        console.log = originalConsoleLog;
       } catch (err) {
         console.error("LLM初期化エラー:", err);
         const errorMessage = err instanceof Error ? err.message : "不明なエラーが発生しました";
@@ -85,9 +107,39 @@ export default function HomePage() {
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }} onKeyDown={handleKeyDown} tabIndex={0}>
-        <Typography variant="h4" gutterBottom>
-          高橋メソッド × WebLLM Demo
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h4">
+            高橋メソッド × WebLLM Demo
+          </Typography>
+          {runtime && (
+            <Box sx={{
+              backgroundColor: runtime === 'wasm' ? '#fff3e0' : '#e8f5e9',
+              color: runtime === 'wasm' ? '#e65100' : '#1b5e20',
+              px: 2,
+              py: 0.5,
+              borderRadius: 1,
+              display: 'flex',
+              alignItems: 'center'
+            }}>
+              <Typography variant="subtitle1" fontWeight="bold">
+                {runtime === 'wasm' ? 'WebAssembly Mode' : 'WebGPU Mode'}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+
+        {/* ランタイムモードの説明 */}
+        {runtime === 'wasm' && (
+          <Box sx={{ mb: 2, p: 2, backgroundColor: "#fff3e0", borderRadius: 1 }}>
+            <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+              WebAssembly モード情報
+            </Typography>
+            <Typography variant="body2">
+              お使いの環境ではWebGPUが利用できないため、WebAssemblyモードで実行しています。
+              処理速度は若干低下しますが、すべての機能をご利用いただけます。
+            </Typography>
+          </Box>
+        )}
         {/* エラーメッセージ */}
         {error && (
           <Box sx={{ mb: 2, p: 2, backgroundColor: "#ffebee", borderRadius: 1 }}>
