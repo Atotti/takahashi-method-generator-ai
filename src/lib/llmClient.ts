@@ -1,11 +1,9 @@
 // lib/llmClient.ts
 // WebLLMを初期化＆プロンプト送信するラッパ
+import * as webllm from "@mlc-ai/web-llm";
 import {
   type InitProgressCallback,
   type MLCEngineInterface,
-  CreateMLCEngine,
-  modelLibURLPrefix,
-  modelVersion,
 } from "@mlc-ai/web-llm";
 
 // WebGPU型定義
@@ -99,11 +97,11 @@ export async function initWebLLM(modelName: string) {
     const modelConfig = {
       webgpu: {
         model: "https://huggingface.co/SakanaAI/TinySwallow-1.5B-Instruct-q4f32_1-MLC",
-        model_lib: `${modelLibURLPrefix}${modelVersion}/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm`,
+        model_lib: webllm.modelLibURLPrefix + webllm.modelVersion + "/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
       },
       wasm: {
         model: "https://huggingface.co/SakanaAI/TinySwallow-1.5B-Instruct-q4f32_1-MLC",
-        model_lib: `${modelLibURLPrefix}${modelVersion}/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-wasm.wasm`,
+        model_lib: webllm.modelLibURLPrefix + webllm.modelVersion + "/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
       },
     };
 
@@ -127,7 +125,7 @@ export async function initWebLLM(modelName: string) {
     };
 
     // エンジン作成＆モデル読み込み
-    llmEngine = await CreateMLCEngine(modelName, {
+    llmEngine = await webllm.CreateMLCEngine(modelName, {
       appConfig: appConfig,
       initProgressCallback: updateEngineInitProgressCallback,
     });
@@ -165,8 +163,11 @@ export async function transformToTakahashiFormat(rawText: string): Promise<strin
 4. 必要に応じて補足メモを追加
 
 出力形式：
-- スライド文（簡潔に）
+- 1枚目スライド文（簡潔に）
   - メモ（必要な場合のみ）
+- 2枚目スライド文
+  - メモ（必要な場合のみ）
+...
 `;
 
   const userPrompt = `【入力文章】
@@ -182,8 +183,10 @@ ${rawText}
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      temperature: 0.3, // より一貫性のある出力のために温度を下げる
-      max_tokens: 1024, // より長い文章に対応
+      temperature: 0.7,
+      top_p: 0.95,
+      presence_penalty: 0.5,
+      max_tokens: 1024,
     });
 
     const content = response.choices[0].message.content?.trim();
