@@ -1,101 +1,144 @@
-import Image from "next/image";
+"use client";
+import { useState, useEffect, KeyboardEvent } from "react";
+import { Box, Button, Container, TextField, Typography } from "@mui/material";
 
-export default function Home() {
+import { initWebLLM, transformToTakahashiFormat } from "../lib/llmClient";
+import { parseTakahashiOutline, SlideData } from "../lib/parseTakahashi";
+
+export default function HomePage() {
+  // 雑に書かれたテキスト
+  const [freeText, setFreeText] = useState("");
+  // 高橋メソッド用フォーマットのテキスト
+  const [outlineText, setOutlineText] = useState("- スライド1\n  - メモ1");
+  // パース結果のスライド一覧
+  const [slides, setSlides] = useState<SlideData[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // WebLLM初期化（クライアントサイドのみ）
+  useEffect(() => {
+    // SSR避け:
+    if (typeof window !== "undefined") {
+      initWebLLM("Llama-2-7b-chat-q4f32_1")
+        .catch((err) => console.error("LLM init failed:", err));
+    }
+  }, []);
+
+  // LLM変換ボタン
+  async function handleTransform() {
+    if (!freeText.trim()) {
+      alert("フリーテキストが空です");
+      return;
+    }
+    try {
+      const result = await transformToTakahashiFormat(freeText.trim());
+      setOutlineText(result);
+    } catch (err) {
+      console.error(err);
+      alert("LLM変換に失敗しました");
+    }
+  }
+
+  // アウトラインをパースしてスライド生成
+  function handleGenerateSlides() {
+    const parsed = parseTakahashiOutline(outlineText);
+    setSlides(parsed);
+    setCurrentIndex(0);
+  }
+
+  // スライド操作
+  function handleNextSlide() {
+    setCurrentIndex((prev) => Math.min(prev + 1, slides.length - 1));
+  }
+  function handlePrevSlide() {
+    setCurrentIndex((prev) => Math.max(prev - 1, 0));
+  }
+  // キーボードで左右操作したい場合
+  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "ArrowRight") {
+      handleNextSlide();
+    } else if (e.key === "ArrowLeft") {
+      handlePrevSlide();
+    }
+  }
+
+  const currentSlide = slides[currentIndex] || null;
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <Container maxWidth="md" sx={{ py: 4 }} onKeyDown={handleKeyDown} tabIndex={0}>
+        <Typography variant="h4" gutterBottom>
+          高橋メソッド × WebLLM Demo
+        </Typography>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+        {/* 1) 雑多な文章入力 */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="h6">Step A: フリーテキスト入力</Typography>
+          <TextField
+            label="雑なアウトライン/文章"
+            multiline
+            minRows={4}
+            fullWidth
+            value={freeText}
+            onChange={(e) => setFreeText(e.target.value)}
+            sx={{ mb: 1 }}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+          <Button variant="contained" onClick={handleTransform}>
+            LLMで高橋メソッド用に変換
+          </Button>
+        </Box>
+
+        {/* 2) アウトライン編集 */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="h6">Step B: アウトライン(高橋メソッド形式)</Typography>
+          <TextField
+            label="アウトライン ( - スライド文 /   - メモ )"
+            multiline
+            minRows={6}
+            fullWidth
+            value={outlineText}
+            onChange={(e) => setOutlineText(e.target.value)}
+            sx={{ mb: 1 }}
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          <Button variant="contained" onClick={handleGenerateSlides}>
+            スライド生成
+          </Button>
+        </Box>
+
+        {/* 3) スライド表示 */}
+        {slides.length > 0 && (
+          <Box sx={{ mb: 2, border: "1px solid gray", p: 2, position: "relative" }}>
+            <Typography variant="h6">Step C: スライドビュー</Typography>
+
+            {currentSlide && (
+              <Box
+                sx={{
+                  mt: 1,
+                  minHeight: 200,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "black",
+                  color: "white",
+                  fontSize: "2rem",
+                  textAlign: "center",
+                  p: 2,
+                }}
+              >
+                {currentSlide.text}
+              </Box>
+            )}
+            <Box sx={{ textAlign: "center", mt: 1 }}>
+              <Button onClick={handlePrevSlide} disabled={currentIndex <= 0}>
+                Prev
+              </Button>
+              <Button onClick={handleNextSlide} disabled={currentIndex >= slides.length - 1}>
+                Next
+              </Button>
+              <Typography variant="body2">
+                {currentIndex + 1}/{slides.length}
+              </Typography>
+            </Box>
+          </Box>
+        )}
+      </Container>
   );
 }
