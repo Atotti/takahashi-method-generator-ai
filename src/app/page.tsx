@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, KeyboardEvent } from "react";
-import { Box, Button, Container, TextField, Typography, CircularProgress } from "@mui/material";
+import { Box, Button, Container, TextField, Typography, CircularProgress, IconButton } from "@mui/material";
+import PresentationMode from "../components/PresentationMode";
 
 import { initWebLLM, transformToTakahashiFormat } from "../lib/llmClient";
 import { parseTakahashiOutline, SlideData } from "../lib/parseTakahashi";
@@ -13,6 +14,7 @@ export default function HomePage() {
   const [outlineText, setOutlineText] = useState("- スライド1\n  - メモ1");
   const [slides, setSlides] = useState<SlideData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<'webgpu' | 'wasm' | null>(null);
@@ -215,39 +217,60 @@ export default function HomePage() {
 
         {/* 3) スライド表示 */}
         {slides.length > 0 && (
-          <Box sx={{ mb: 2, border: "1px solid gray", p: 2, position: "relative" }}>
-            <Typography variant="h6">Step C: スライドビュー</Typography>
+          <>
+            {isPresentationMode ? (
+              <PresentationMode
+                slides={slides}
+                currentIndex={currentIndex}
+                onNext={handleNextSlide}
+                onPrev={handlePrevSlide}
+                onExit={() => setIsPresentationMode(false)}
+              />
+            ) : (
+              <Box sx={{ mb: 2, border: "1px solid gray", p: 2, position: "relative" }}>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <Typography variant="h6">Step C: スライドビュー</Typography>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => setIsPresentationMode(true)}
+                  >
+                    プレゼンテーションモード
+                  </Button>
+                </Box>
 
-            {currentSlide && (
-              <Box
-                sx={{
-                  mt: 1,
-                  minHeight: 200,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "black",
-                  color: "white",
-                  fontSize: "2rem",
-                  textAlign: "center",
-                  p: 2,
-                }}
-              >
-                {currentSlide.text}
+                {currentSlide && (
+                  <Box
+                    sx={{
+                      mt: 1,
+                      minHeight: 200,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "black",
+                      color: "white",
+                      fontSize: "2rem",
+                      textAlign: "center",
+                      p: 2,
+                    }}
+                  >
+                    {currentSlide.text}
+                  </Box>
+                )}
+                <Box sx={{ textAlign: "center", mt: 1 }}>
+                  <Button onClick={handlePrevSlide} disabled={currentIndex <= 0}>
+                    Prev
+                  </Button>
+                  <Button onClick={handleNextSlide} disabled={currentIndex >= slides.length - 1}>
+                    Next
+                  </Button>
+                  <Typography variant="body2">
+                    {currentIndex + 1}/{slides.length}
+                  </Typography>
+                </Box>
               </Box>
             )}
-            <Box sx={{ textAlign: "center", mt: 1 }}>
-              <Button onClick={handlePrevSlide} disabled={currentIndex <= 0}>
-                Prev
-              </Button>
-              <Button onClick={handleNextSlide} disabled={currentIndex >= slides.length - 1}>
-                Next
-              </Button>
-              <Typography variant="body2">
-                {currentIndex + 1}/{slides.length}
-              </Typography>
-            </Box>
-          </Box>
+          </>
         )}
       </Container>
   );
