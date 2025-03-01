@@ -1,40 +1,60 @@
 "use client";
 import { useState, useEffect, KeyboardEvent } from "react";
-import { Box, Button, Container, TextField, Typography } from "@mui/material";
+import { Box, Button, Container, TextField, Typography, CircularProgress } from "@mui/material";
 
 import { initWebLLM, transformToTakahashiFormat } from "../lib/llmClient";
 import { parseTakahashiOutline, SlideData } from "../lib/parseTakahashi";
 
+const MODEL_NAME = "TinySwallow-1.5B-Instruct";
+
 export default function HomePage() {
-  // 雑に書かれたテキスト
+  // State管理
   const [freeText, setFreeText] = useState("");
-  // 高橋メソッド用フォーマットのテキスト
   const [outlineText, setOutlineText] = useState("- スライド1\n  - メモ1");
-  // パース結果のスライド一覧
   const [slides, setSlides] = useState<SlideData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // WebLLM初期化（クライアントサイドのみ）
+  // WebLLM初期化
   useEffect(() => {
-    // SSR避け:
-    if (typeof window !== "undefined") {
-      initWebLLM("Llama-2-7b-chat-q4f32_1")
-        .catch((err) => console.error("LLM init failed:", err));
+    if (typeof window === "undefined") return;
+
+    async function initLLM() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        await initWebLLM(MODEL_NAME);
+      } catch (err) {
+        console.error("LLM初期化エラー:", err);
+        const errorMessage = err instanceof Error ? err.message : "不明なエラーが発生しました";
+        setError(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
     }
+
+    initLLM();
   }, []);
 
   // LLM変換ボタン
   async function handleTransform() {
-    if (!freeText.trim()) {
-      alert("フリーテキストが空です");
+    const text = freeText.trim();
+    if (!text) {
+      setError("テキストを入力してください");
       return;
     }
+
     try {
-      const result = await transformToTakahashiFormat(freeText.trim());
+      setIsLoading(true);
+      setError(null);
+      const result = await transformToTakahashiFormat(text);
       setOutlineText(result);
     } catch (err) {
-      console.error(err);
-      alert("LLM変換に失敗しました");
+      console.error("変換エラー:", err);
+      setError(err instanceof Error ? err.message : "変換処理でエラーが発生しました");
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -68,21 +88,51 @@ export default function HomePage() {
         <Typography variant="h4" gutterBottom>
           高橋メソッド × WebLLM Demo
         </Typography>
+        {/* エラーメッセージ */}
+        {error && (
+          <Box sx={{ mb: 2, p: 2, backgroundColor: "#ffebee", borderRadius: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle1" color="error" gutterBottom>
+                  エラーが発生しました
+                </Typography>
+                <Typography color="error.dark" sx={{ whiteSpace: "pre-line" }}>
+                  {error}
+                </Typography>
+              </Box>
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                onClick={() => window.location.reload()}
+              >
+                ページを再読み込み
+              </Button>
+            </Box>
+          </Box>
+        )}
 
         {/* 1) 雑多な文章入力 */}
         <Box sx={{ mb: 2 }}>
           <Typography variant="h6">Step A: フリーテキスト入力</Typography>
           <TextField
-            label="雑なアウトライン/文章"
+            label="フリーテキストを入力"
+            placeholder="変換したい文章を入力してください"
             multiline
             minRows={4}
             fullWidth
             value={freeText}
             onChange={(e) => setFreeText(e.target.value)}
+            disabled={isLoading}
             sx={{ mb: 1 }}
           />
-          <Button variant="contained" onClick={handleTransform}>
-            LLMで高橋メソッド用に変換
+          <Button
+            variant="contained"
+            onClick={handleTransform}
+            disabled={isLoading || !freeText.trim()}
+            startIcon={isLoading && <CircularProgress size={20} color="inherit" />}
+          >
+            {isLoading ? "変換中..." : "LLMで高橋メソッド用に変換"}
           </Button>
         </Box>
 
@@ -91,15 +141,23 @@ export default function HomePage() {
           <Typography variant="h6">Step B: アウトライン(高橋メソッド形式)</Typography>
           <TextField
             label="アウトライン ( - スライド文 /   - メモ )"
+            placeholder="- スライドのタイトル\n  - 補足メモ（任意）"
             multiline
             minRows={6}
             fullWidth
             value={outlineText}
             onChange={(e) => setOutlineText(e.target.value)}
+            disabled={isLoading}
+            error={!outlineText.includes('-')}
+            helperText={!outlineText.includes('-') ? "高橋メソッド形式で入力してください" : ""}
             sx={{ mb: 1 }}
           />
-          <Button variant="contained" onClick={handleGenerateSlides}>
-            スライド生成
+          <Button
+            variant="contained"
+            onClick={handleGenerateSlides}
+            disabled={isLoading || !outlineText.trim() || !outlineText.includes('-')}
+          >
+            スライドを生成
           </Button>
         </Box>
 
