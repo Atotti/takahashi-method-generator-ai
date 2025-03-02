@@ -12,26 +12,24 @@ export interface ParsedLLMResponse {
  * アウトライン文字列をパースし、SlideData[] に変換する
  */
 export function parseTakahashiOutline(input: string): SlideData[] {
-  const lines = input.split(/\r?\n/);
+  // <answer>タグ内のコンテンツを抽出
+  const answerMatch = input.match(/<answer>([\s\S]*?)<\/answer>/);
+  if (!answerMatch) return [];
+
+  const answerContent = answerMatch[1].trim();
+  const lines = answerContent.split(/\r?\n/);
   const slides: SlideData[] = [];
-  let currentSlide: SlideData | null = null;
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // ハイフンで始まる行（インデントの有無に関わらず）
-    const slideMatch = line.match(/^(?:\s*)- (.*)/);
-
+    // ハイフンで始まる行の処理
+    const slideMatch = trimmed.match(/^- (.*)/);
     if (slideMatch) {
-      // 新規スライド
-      if (currentSlide) {
-        slides.push(currentSlide);
-      }
-      currentSlide = { text: slideMatch[1].trim(), memos: [] };
+      slides.push({ text: slideMatch[1].trim(), memos: [] });
     }
   }
-  if (currentSlide) slides.push(currentSlide);
 
   return slides;
 }

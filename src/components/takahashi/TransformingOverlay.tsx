@@ -95,7 +95,7 @@ export default function TransformingOverlay({ streamingContent }: TransformingOv
                 sx={{
                   p: 2,
                   backgroundColor: 'background.paper',
-                  maxHeight: '300px',
+                  maxHeight: '3000px',
                   overflow: 'auto'
                 }}
               >
