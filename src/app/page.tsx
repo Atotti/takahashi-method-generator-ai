@@ -1,7 +1,19 @@
 "use client";
-import { useState, useEffect, KeyboardEvent } from "react";
-import { Box, Button, Container, TextField, Typography, CircularProgress, IconButton, LinearProgress } from "@mui/material";
+import { useState, useEffect, type KeyboardEvent } from "react";
+import { Container, useMediaQuery, useTheme } from "@mui/material";
 import PresentationMode from "../components/PresentationMode";
+
+import {
+  Header,
+  StepIndicator,
+  LoadingOverlay,
+  ErrorMessage,
+  TextInputStep,
+  OutlineEditStep,
+  PreviewStep,
+  Footer,
+  HeroSection
+} from "../components/takahashi";
 
 import { initWebLLM, transformToTakahashiFormat, getInitializationStatus, waitForInitialization } from "../lib/llmClient";
 import { parseTakahashiOutline, SlideData } from "../lib/parseTakahashi";
@@ -9,6 +21,9 @@ import { parseTakahashiOutline, SlideData } from "../lib/parseTakahashi";
 const MODEL_NAME = "TinySwallow-GRPO-TMethod-experimental";
 
 export default function HomePage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   // State管理
   const [freeText, setFreeText] = useState("");
   const [outlineText, setOutlineText] = useState("- スライド1\n  - メモ1");
@@ -18,6 +33,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<'wasm' | null>(null);
+  const [activeStep, setActiveStep] = useState<'input' | 'outline' | 'preview'>('input');
 
   // 進捗状況の状態
   const [progress, setProgress] = useState(0);
@@ -130,6 +146,7 @@ export default function HomePage() {
       const result = await transformToTakahashiFormat(text);
       console.log("テキスト変換が完了しました。");
       setOutlineText(result);
+      setActiveStep('outline');
     } catch (err) {
       console.error("変換エラー:", err);
       setError(err instanceof Error ? err.message : "変換処理でエラーが発生しました");
@@ -143,15 +160,18 @@ export default function HomePage() {
     const parsed = parseTakahashiOutline(outlineText);
     setSlides(parsed);
     setCurrentIndex(0);
+    setActiveStep('preview');
   }
 
   // スライド操作
   function handleNextSlide() {
     setCurrentIndex((prev) => Math.min(prev + 1, slides.length - 1));
   }
+
   function handlePrevSlide() {
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }
+
   // キーボードで左右操作したい場合
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "ArrowRight") {
@@ -161,223 +181,91 @@ export default function HomePage() {
     }
   }
 
-  const currentSlide = slides[currentIndex] || null;
-
   return (
-    <Container maxWidth="md" sx={{ py: 4 }} onKeyDown={handleKeyDown} tabIndex={0}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h4">
-            高橋メソッド × WebLLM Demo
-          </Typography>
-          {runtime && (
-            <Box sx={{
-              backgroundColor: '#fff3e0',
-              color: '#e65100',
-              px: 2,
-              py: 0.5,
-              borderRadius: 1,
-              display: 'flex',
-              alignItems: 'center'
-            }}>
-              <Typography variant="subtitle1" fontWeight="bold">
-                WebAssembly Mode (WebGPU)
-              </Typography>
-            </Box>
-          )}
-        </Box>
+    <>
+      <Header runtime={runtime} />
 
-        {/* ランタイムモードの説明 */}
-        {runtime === 'wasm' && (
-          <Box sx={{ mb: 2, p: 2, backgroundColor: "#fff3e0", borderRadius: 1 }}>
-            <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-              WebAssembly モード情報
-            </Typography>
-            <Typography variant="body2">
-              WebAssembly経由でWebGPUを使用しています。
-              すべての機能をご利用いただけます。
-            </Typography>
-          </Box>
-        )}
+      <Container
+        maxWidth="lg"
+        sx={{
+          py: { xs: 2, md: 4 },
+          px: { xs: 2, md: 4 },
+          minHeight: 'calc(100vh - 64px)',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+      >
+        <HeroSection />
+
+        <StepIndicator
+          activeStep={activeStep}
+          setActiveStep={setActiveStep}
+          outlineHasContent={outlineText.includes('-')}
+          slidesExist={slides.length > 0}
+        />
+
         {/* モデル初期化中の大きなローディング表示 */}
         {isLoading && !error && (
-          <Box sx={{ mb: 4, p: 4, backgroundColor: "#e3f2fd", borderRadius: 2, textAlign: "center" }}>
-            <CircularProgress size={80} thickness={5} sx={{ mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              モデルを初期化しています
-            </Typography>
-
-            {/* 進捗状況バー */}
-            <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
-              <Box sx={{ position: 'relative', display: 'inline-flex', width: '100%' }}>
-                <Box sx={{ width: '100%', mr: 1 }}>
-                  <LinearProgress
-                    variant="determinate"
-                    value={progress}
-                    sx={{ height: 10, borderRadius: 5 }}
-                  />
-                </Box>
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    right: 0,
-                    top: -5,
-                    color: 'text.secondary',
-                    fontSize: '0.75rem',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  {`${Math.round(progress)}%`}
-                </Box>
-              </Box>
-            </Box>
-
-            <Typography variant="body1" color="text.secondary">
-              初回の読み込みには時間がかかります。しばらくお待ちください...
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              (初期化中でもテキストの入力は可能です)
-            </Typography>
-
-            {/* コンソールログ表示 */}
-            <Box sx={{ mt: 3, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1, textAlign: 'left', maxHeight: '150px', overflow: 'auto' }}>
-              <Typography variant="caption" component="div" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                {`モデル初期化中 - 進捗: ${progress}%`}
-              </Typography>
-            </Box>
-          </Box>
+          <LoadingOverlay progress={progress} />
         )}
 
         {/* エラーメッセージ */}
         {error && (
-          <Box sx={{ mb: 2, p: 2, backgroundColor: "#ffebee", borderRadius: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle1" color="error" gutterBottom>
-                  エラーが発生しました
-                </Typography>
-                <Typography color="error.dark" sx={{ whiteSpace: "pre-line" }}>
-                  {error}
-                </Typography>
-              </Box>
-              <Button
-                variant="outlined"
-                color="error"
-                size="small"
-                onClick={() => window.location.reload()}
-              >
-                ページを再読み込み
-              </Button>
-            </Box>
-          </Box>
+          <ErrorMessage message={error} />
         )}
 
-        {/* 1) 雑多な文章入力 */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="h6">Step A: フリーテキスト入力</Typography>
-          <TextField
-            label="フリーテキストを入力"
-            placeholder="変換したい文章を入力してください"
-            multiline
-            minRows={4}
-            fullWidth
-            value={freeText}
-            onChange={(e) => setFreeText(e.target.value)}
-            disabled={isLoading}
-            sx={{ mb: 1 }}
-          />
-          <Button
-            variant="contained"
-            onClick={handleTransform}
-            disabled={isLoading || !freeText.trim()}
-            startIcon={isLoading && <CircularProgress size={24} color="inherit" />}
-            sx={{ py: 1.5, px: 3, fontSize: '1rem' }}
-          >
-            {isLoading ? "変換中..." : "LLMで高橋メソッド用に変換"}
-          </Button>
-        </Box>
+        {/* コンテンツエリア */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          {/* 1) テキスト入力ステップ */}
+          {activeStep === 'input' && (
+            <TextInputStep
+              freeText={freeText}
+              setFreeText={setFreeText}
+              isLoading={isLoading}
+              onTransform={handleTransform}
+            />
+          )}
 
-        {/* 2) アウトライン編集 */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="h6">Step B: アウトライン(高橋メソッド形式)</Typography>
-          <TextField
-            label="アウトライン ( - スライド文 /   - メモ )"
-            placeholder="- スライドのタイトル\n  - 補足メモ（任意）"
-            multiline
-            minRows={6}
-            fullWidth
-            value={outlineText}
-            onChange={(e) => setOutlineText(e.target.value)}
-            disabled={isLoading}
-            error={!outlineText.includes('-')}
-            helperText={!outlineText.includes('-') ? "高橋メソッド形式で入力してください" : ""}
-            sx={{ mb: 1 }}
-          />
-          <Button
-            variant="contained"
-            onClick={handleGenerateSlides}
-            disabled={isLoading || !outlineText.trim() || !outlineText.includes('-')}
-          >
-            スライドを生成
-          </Button>
-        </Box>
+          {/* 2) アウトライン編集ステップ */}
+          {activeStep === 'outline' && (
+            <OutlineEditStep
+              outlineText={outlineText}
+              setOutlineText={setOutlineText}
+              isLoading={isLoading}
+              onGenerateSlides={handleGenerateSlides}
+              onBack={() => setActiveStep('input')}
+            />
+          )}
 
-        {/* 3) スライド表示 */}
-        {slides.length > 0 && (
-          <>
-            {isPresentationMode ? (
-              <PresentationMode
-                slides={slides}
-                currentIndex={currentIndex}
-                onNext={handleNextSlide}
-                onPrev={handlePrevSlide}
-                onExit={() => setIsPresentationMode(false)}
-              />
-            ) : (
-              <Box sx={{ mb: 2, border: "1px solid gray", p: 2, position: "relative" }}>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <Typography variant="h6">Step C: スライドビュー</Typography>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={() => setIsPresentationMode(true)}
-                  >
-                    プレゼンテーションモード
-                  </Button>
-                </Box>
+          {/* 3) プレビューステップ */}
+          {activeStep === 'preview' && slides.length > 0 && (
+            <PreviewStep
+              slides={slides}
+              currentIndex={currentIndex}
+              onNext={handleNextSlide}
+              onPrev={handlePrevSlide}
+              onStartPresentation={() => setIsPresentationMode(true)}
+              onBackToOutline={() => setActiveStep('outline')}
+              onNewText={() => setActiveStep('input')}
+            />
+          )}
+        </div>
 
-                {currentSlide && (
-                  <Box
-                    sx={{
-                      mt: 1,
-                      minHeight: 200,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: "black",
-                      color: "white",
-                      fontSize: "2rem",
-                      textAlign: "center",
-                      p: 2,
-                    }}
-                  >
-                    {currentSlide.text}
-                  </Box>
-                )}
-                <Box sx={{ textAlign: "center", mt: 1 }}>
-                  <Button onClick={handlePrevSlide} disabled={currentIndex <= 0}>
-                    Prev
-                  </Button>
-                  <Button onClick={handleNextSlide} disabled={currentIndex >= slides.length - 1}>
-                    Next
-                  </Button>
-                  <Typography variant="body2">
-                    {currentIndex + 1}/{slides.length}
-                  </Typography>
-                </Box>
-              </Box>
-            )}
-          </>
-        )}
+        <Footer />
       </Container>
+
+      {/* プレゼンテーションモード */}
+      {isPresentationMode && (
+        <PresentationMode
+          slides={slides}
+          currentIndex={currentIndex}
+          onNext={handleNextSlide}
+          onPrev={handlePrevSlide}
+          onExit={() => setIsPresentationMode(false)}
+        />
+      )}
+    </>
   );
 }
