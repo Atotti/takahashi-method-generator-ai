@@ -17,7 +17,7 @@ export default function HomePage() {
   const [isPresentationMode, setIsPresentationMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [runtime, setRuntime] = useState<'webgpu' | 'wasm' | null>(null);
+  const [runtime, setRuntime] = useState<'wasm' | null>(null);
 
   // WebLLM初期化
   useEffect(() => {
@@ -28,18 +28,15 @@ export default function HomePage() {
         setIsLoading(true);
         setError(null);
 
-        // コンソールログを監視してランタイムを検出
+        // コンソールログを監視してランタイム情報を取得
         const originalConsoleLog = console.log;
         console.log = function(...args) {
           originalConsoleLog.apply(console, args);
 
-          // ランタイムの検出
+          // ランタイム情報の取得
           if (args.length > 0 && typeof args[0] === 'string') {
             if (args[0].includes('実行環境: wasm')) {
               setRuntime('wasm');
-              setError(null);
-            } else if (args[0].includes('実行環境: webgpu')) {
-              setRuntime('webgpu');
               setError(null);
             }
           }
@@ -115,8 +112,8 @@ export default function HomePage() {
           </Typography>
           {runtime && (
             <Box sx={{
-              backgroundColor: runtime === 'wasm' ? '#fff3e0' : '#e8f5e9',
-              color: runtime === 'wasm' ? '#e65100' : '#1b5e20',
+              backgroundColor: '#fff3e0',
+              color: '#e65100',
               px: 2,
               py: 0.5,
               borderRadius: 1,
@@ -124,7 +121,7 @@ export default function HomePage() {
               alignItems: 'center'
             }}>
               <Typography variant="subtitle1" fontWeight="bold">
-                {runtime === 'wasm' ? 'WebAssembly Mode' : 'WebGPU Mode'}
+                WebAssembly Mode (WebGPU)
               </Typography>
             </Box>
           )}
@@ -137,8 +134,8 @@ export default function HomePage() {
               WebAssembly モード情報
             </Typography>
             <Typography variant="body2">
-              お使いの環境ではWebGPUが利用できないため、WebAssemblyモードで実行しています。
-              処理速度は若干低下しますが、すべての機能をご利用いただけます。
+              WebAssembly経由でWebGPUを使用しています。
+              すべての機能をご利用いただけます。
             </Typography>
           </Box>
         )}

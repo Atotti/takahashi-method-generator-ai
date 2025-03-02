@@ -32,32 +32,29 @@ let isInitializing = false;
 // モデル初期化中のエラーをより詳細に表示するためのデバッグフラグ
 const DEBUG = true;
 
-// 実行環境の種類を定義
-type RuntimeEnvironment = 'webgpu' | 'wasm';
-
-// 現在の実行環境
-let currentRuntime: RuntimeEnvironment = 'wasm';
+// 実行環境はWasmに統一（Wasm経由でWebGPUを使用）
+const currentRuntime = 'wasm';
 
 /**
- * WebGPUのサポートを確認し、利用可能な実行環境を決定
+ * WebGPUのサポート情報を表示（デバッグ用）
  */
-async function detectRuntime(): Promise<RuntimeEnvironment> {
+async function checkWebGPUSupport(): Promise<void> {
   if (typeof window === "undefined") {
-    return 'wasm'; // SSR環境ではWasmを使用
+    return; // SSR環境ではチェックしない
   }
 
   try {
     if (!navigator.gpu) {
-      console.log("WebGPUは利用できません。WebAssemblyを使用します。");
-      return 'wasm';
+      console.log("WebGPUは利用できません。Wasm経由で実行します。");
+      return;
     }
 
     console.log("WebGPUアダプターをチェック中...");
     const adapter = await navigator.gpu.requestAdapter();
 
     if (!adapter) {
-      console.log("WebGPUアダプターを取得できません。WebAssemblyを使用します。");
-      return 'wasm';
+      console.log("WebGPUアダプターを取得できません。Wasm経由で実行します。");
+      return;
     }
 
     // アダプターの情報を表示（デバッグ用）
@@ -66,11 +63,9 @@ async function detectRuntime(): Promise<RuntimeEnvironment> {
       console.log("WebGPUアダプター情報:", info);
     }
 
-    console.log("WebGPUが利用可能です。");
-    return 'webgpu';
+    console.log("WebGPUが利用可能です。Wasm経由で使用します。");
   } catch (error) {
-    console.log("WebGPUの初期化に失敗しました。WebAssemblyを使用します。", error);
-    return 'wasm';
+    console.log("WebGPUの初期化に失敗しました。Wasm経由で実行します。", error);
   }
 }
 
@@ -89,29 +84,21 @@ export async function initWebLLM(modelName: string) {
   try {
     isInitializing = true;
 
-    // 利用可能な実行環境を検出
-    currentRuntime = await detectRuntime();
-    console.log(`実行環境: ${currentRuntime}`);
+    // WebGPUサポート情報を表示（デバッグ用）
+    await checkWebGPUSupport();
+    console.log(`実行環境: ${currentRuntime} (Wasm経由でWebGPU使用)`);
 
-    // モデル設定を構築
+    // モデル設定を構築（統一版）
     const modelConfig = {
-      webgpu: {
-        model: "https://huggingface.co/Atotti/TinySwallow-GRPO-TMethod-experimental-q4f32_1-MLC",
-        model_lib: webllm.modelLibURLPrefix + webllm.modelVersion + "/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
-      },
-      wasm: {
-        model: "https://huggingface.co/Atotti/TinySwallow-GRPO-TMethod-experimental-q4f32_1-MLC",
-        model_lib: webllm.modelLibURLPrefix + webllm.modelVersion + "/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
-      },
+      model: "https://huggingface.co/Atotti/TinySwallow-GRPO-TMethod-experimental-q4f32_1-MLC",
+      model_lib: webllm.modelLibURLPrefix + webllm.modelVersion + "/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
     };
-
-    const selectedConfig = modelConfig[currentRuntime];
     const appConfig = {
       model_list: [
         {
-          model: selectedConfig.model,
+          model: modelConfig.model,
           model_id: modelName,
-          model_lib: selectedConfig.model_lib,
+          model_lib: modelConfig.model_lib,
         },
       ],
     };
@@ -138,7 +125,7 @@ export async function initWebLLM(modelName: string) {
   } catch (error: unknown) {
     console.error("モデルの初期化中にエラーが発生:", error);
     if (DEBUG) {
-      console.log("エラーの詳細:", JSON.stringify(error, null, 2));
+      console.log("エラーの詳細:", error instanceof Error ? error.message : String(error));
     }
     throw error;
   } finally {
