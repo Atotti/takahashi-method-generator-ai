@@ -96,11 +96,11 @@ export async function initWebLLM(modelName: string) {
     // モデル設定を構築
     const modelConfig = {
       webgpu: {
-        model: "https://huggingface.co/SakanaAI/TinySwallow-1.5B-Instruct-q4f32_1-MLC",
+        model: "https://huggingface.co/Atotti/TinySwallow-GRPO-TMethod-experimental-q4f32_1-MLC",
         model_lib: webllm.modelLibURLPrefix + webllm.modelVersion + "/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
       },
       wasm: {
-        model: "https://huggingface.co/SakanaAI/TinySwallow-1.5B-Instruct-q4f32_1-MLC",
+        model: "https://huggingface.co/Atotti/TinySwallow-GRPO-TMethod-experimental-q4f32_1-MLC",
         model_lib: webllm.modelLibURLPrefix + webllm.modelVersion + "/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
       },
     };
@@ -155,7 +155,16 @@ export async function transformToTakahashiFormat(rawText: string): Promise<strin
   }
 
   const systemPrompt = `
-###Task###
+Respond in the following format:
+<reasoning>
+...
+</reasoning>
+<answer>
+- ...
+- ...
+- ...
+...
+</answer>
 あなたは高橋メソッドに基づくプレゼン資料作成のエキスパートです。
 以下のルールに従って、入力された文章を高橋メソッド形式に変換してください：
 ###Rules###
@@ -168,26 +177,13 @@ export async function transformToTakahashiFormat(rawText: string): Promise<strin
 - ユーザーが提示したテーマを元に、インパクトがあり直感的に伝わるスライド群を生成してください。
 - 出力形式は "- スライドに表示したいテキスト" という形式で出力してください。
 - "- "に続く文字は、スライドに表示されるテキストとして扱われます。表示させないテキストは出力しないでください。
-###Example###
-- 高橋メソッド
-- 巨大な文字
-- 1スライド
-- 1メッセージ
-- テンポよく
-- 伝わる
-- 飽きない
-- インパクト大
-- 話しやすい
-- 詳細不要
-- シンプル
-- 以上
 `;
 
   const userPrompt = `【入力文章】
 ${rawText}
 
 【出力】
-入力文章をプレゼンする高橋メソッドに基づくプレゼン資料を作成してください。
+入力文章をプレゼンする高橋メソッドに基づくプレゼン資料を作成してください。スライドは可能な限り内容を網羅した大量のスライドにしてください。
 `;
 
   try {

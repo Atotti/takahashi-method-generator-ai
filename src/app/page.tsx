@@ -6,7 +6,7 @@ import PresentationMode from "../components/PresentationMode";
 import { initWebLLM, transformToTakahashiFormat } from "../lib/llmClient";
 import { parseTakahashiOutline, SlideData } from "../lib/parseTakahashi";
 
-const MODEL_NAME = "TinySwallow-1.5B-Instruct";
+const MODEL_NAME = "TinySwallow-GRPO-TMethod-experimental";
 
 export default function HomePage() {
   // State管理
