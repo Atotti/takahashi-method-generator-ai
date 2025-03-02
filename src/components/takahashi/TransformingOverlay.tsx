@@ -5,11 +5,30 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  Typography
+  Typography,
+  Paper
 } from "@mui/material";
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { parseReasoningAndAnswer } from "@/lib/parseTakahashi";
+import { useEffect, useState } from "react";
 
-export default function TransformingOverlay() {
+interface TransformingOverlayProps {
+  streamingContent?: string;
+}
+
+export default function TransformingOverlay({ streamingContent }: TransformingOverlayProps) {
+  const [parsedContent, setParsedContent] = useState<{ reasoning: string; answer: string }>({
+    reasoning: "",
+    answer: ""
+  });
+
+  useEffect(() => {
+    if (streamingContent) {
+      const parsed = parseReasoningAndAnswer(streamingContent);
+      setParsedContent(parsed);
+    }
+  }, [streamingContent]);
+
   return (
     <Card
       className="glass-card animate-fade-in"
@@ -34,6 +53,69 @@ export default function TransformingOverlay() {
             </Typography>
           </Box>
         </Box>
+
+        {/* ストリーミングコンテンツの表示 */}
+        {streamingContent && (
+          <Box sx={{ mt: 4, textAlign: 'left' }}>
+            {parsedContent.reasoning && (
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2,
+                  mb: 2,
+                  backgroundColor: 'rgba(0, 0, 0, 0.03)',
+                  color: 'text.secondary',
+                  fontSize: '0.9rem',
+                  maxHeight: '200px',
+                  overflow: 'auto'
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                  推論プロセス:
+                </Typography>
+                <Typography
+                  variant="body2"
+                  component="pre"
+                  sx={{
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    fontFamily: 'monospace',
+                    fontSize: '0.8rem',
+                    lineHeight: 1.5
+                  }}
+                >
+                  {parsedContent.reasoning}
+                </Typography>
+              </Paper>
+            )}
+
+            {parsedContent.answer && (
+              <Paper
+                elevation={1}
+                sx={{
+                  p: 2,
+                  backgroundColor: 'background.paper',
+                  maxHeight: '300px',
+                  overflow: 'auto'
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  component="pre"
+                  sx={{
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    fontFamily: 'monospace',
+                    fontSize: '0.9rem',
+                    lineHeight: 1.5
+                  }}
+                >
+                  {parsedContent.answer}
+                </Typography>
+              </Paper>
+            )}
+          </Box>
+        )}
 
         {/* アニメーション付きのアイコン */}
         <Box sx={{

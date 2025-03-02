@@ -165,7 +165,10 @@ export async function initWebLLM(modelName: string) {
 /**
  * 入力テキストを「高橋メソッド用フォーマット」に変換する
  */
-export async function transformToTakahashiFormat(rawText: string): Promise<string> {
+export async function transformToTakahashiFormat(
+  rawText: string,
+  onProgress?: (text: string) => void
+): Promise<string> {
   // 初期化が完了していない場合は待機
   if (!isInitialized || !llmEngine) {
     if (isInitializing && initPromise) {
@@ -214,7 +217,8 @@ ${rawText}
 `;
 
   try {
-    const response = await llmEngine.chat.completions.create({
+    let fullContent = "";
+    const chunks = await llmEngine.chat.completions.create({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -223,21 +227,33 @@ ${rawText}
       top_p: 0.95,
       presence_penalty: 1.2,
       max_tokens: 4096,
+      stream: true,
+      stream_options: { include_usage: true },
     });
 
-    const content = response.choices[0].message.content?.trim();
-    if (!content) {
+    for await (const chunk of chunks) {
+      const content = chunk.choices[0]?.delta.content || "";
+      fullContent += content;
+
+      // 進捗コールバックが提供されている場合は呼び出す
+      if (onProgress) {
+        onProgress(fullContent);
+      }
+    }
+
+    const trimmedContent = fullContent.trim();
+    if (!trimmedContent) {
       throw new Error("LLMからの応答が空でした");
     }
 
     // 出力形式の検証 - 少なくとも1つの「- スライドテキスト」形式の行があるかチェック
     const slideLineRegex = /^- .+$/m;
-    if (!slideLineRegex.test(content)) {
+    if (!slideLineRegex.test(trimmedContent)) {
       throw new Error("高橋メソッド形式への変換に失敗しました");
     }
 
-    console.log("LLM Output:\n", content);
-    return content;
+    console.log("LLM Output:\n", trimmedContent);
+    return trimmedContent;
   } catch (error: unknown) {
     console.error("変換処理でエラーが発生:", error);
     const errorMessage = error instanceof Error ? error.message : "不明なエラーが発生しました";

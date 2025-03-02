@@ -36,6 +36,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<'wasm' | null>(null);
   const [activeStep, setActiveStep] = useState<'input' | 'outline' | 'preview'>('input');
+  const [streamingContent, setStreamingContent] = useState<string>(""); // ストリーミング中のコンテンツ
 
   // 進捗状況の状態
   const [progress, setProgress] = useState(0);
@@ -151,10 +152,16 @@ export default function HomePage() {
       }
 
       console.log("テキスト変換を開始します...");
-      const result = await transformToTakahashiFormat(text);
+      // ストリーミングコンテンツを更新するコールバック関数
+      const onProgress = (content: string) => {
+        setStreamingContent(content);
+      };
+
+      const result = await transformToTakahashiFormat(text, onProgress);
       console.log("テキスト変換が完了しました。");
       setOutlineText(result);
       setActiveStep('outline');
+      setStreamingContent(""); // リセット
     } catch (err) {
       console.error("変換エラー:", err);
       setError(err instanceof Error ? err.message : "変換処理でエラーが発生しました");
@@ -222,7 +229,7 @@ export default function HomePage() {
 
         {/* テキスト変換中のローディング表示 */}
         {isTransforming && !error && (
-          <TransformingOverlay />
+          <TransformingOverlay streamingContent={streamingContent} />
         )}
 
         {/* エラーメッセージ */}
