@@ -7,6 +7,7 @@ import {
   Header,
   StepIndicator,
   LoadingOverlay,
+  TransformingOverlay,
   ErrorMessage,
   TextInputStep,
   OutlineEditStep,
@@ -31,6 +32,7 @@ export default function HomePage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTransforming, setIsTransforming] = useState(false); // テキスト変換中の状態
   const [error, setError] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<'wasm' | null>(null);
   const [activeStep, setActiveStep] = useState<'input' | 'outline' | 'preview'>('input');
@@ -108,7 +110,8 @@ export default function HomePage() {
     }
 
     try {
-      setIsLoading(true);
+      // モデル初期化中かテキスト変換中かを区別
+      setIsTransforming(true);
       setError(null);
 
       // 初期化状態を確認
@@ -127,6 +130,9 @@ export default function HomePage() {
       } else if (!status.isInitialized) {
         // 再初期化を試みる
         console.log("モデルが初期化されていません。初期化を試みます...");
+        setIsLoading(true); // モデル初期化中
+        setIsTransforming(false);
+
         try {
           await initWebLLM(MODEL_NAME);
 
@@ -136,6 +142,8 @@ export default function HomePage() {
             throw new Error("モデルが初期化されていません。ページを再読み込みしてください。");
           }
           console.log("モデルの初期化が完了しました。変換を開始します。");
+          setIsLoading(false);
+          setIsTransforming(true); // 変換に戻る
         } catch (initErr) {
           console.error("モデル再初期化エラー:", initErr);
           throw new Error("モデルの初期化に失敗しました。ページを再読み込みしてください。");
@@ -152,6 +160,7 @@ export default function HomePage() {
       setError(err instanceof Error ? err.message : "変換処理でエラーが発生しました");
     } finally {
       setIsLoading(false);
+      setIsTransforming(false);
     }
   }
 
@@ -207,8 +216,13 @@ export default function HomePage() {
         />
 
         {/* モデル初期化中の大きなローディング表示 */}
-        {isLoading && !error && (
+        {isLoading && !error && !isTransforming && (
           <LoadingOverlay progress={progress} />
+        )}
+
+        {/* テキスト変換中のローディング表示 */}
+        {isTransforming && !error && (
+          <TransformingOverlay />
         )}
 
         {/* エラーメッセージ */}
@@ -223,7 +237,7 @@ export default function HomePage() {
             <TextInputStep
               freeText={freeText}
               setFreeText={setFreeText}
-              isLoading={isLoading}
+              isLoading={isLoading || isTransforming}
               onTransform={handleTransform}
             />
           )}
