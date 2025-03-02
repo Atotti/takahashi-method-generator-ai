@@ -6,66 +6,38 @@ import {
   type MLCEngineInterface,
 } from "@mlc-ai/web-llm";
 
-// WebGPU型定義
-declare global {
-  interface Navigator {
-    gpu?: {
-      requestAdapter(): Promise<GPUAdapter | null>;
-    };
-  }
-
-  interface GPUAdapter {
-    requestAdapterInfo(): Promise<GPUAdapterInfo>;
-  }
-
-  interface GPUAdapterInfo {
-    vendor: string;
-    architecture: string;
-    device: string;
-    description: string;
-  }
-}
-
 let llmEngine: MLCEngineInterface | null = null;
 let isInitializing = false;
+let isInitialized = false;
+let initPromise: Promise<void> | null = null;
+let loadingProgress = 0; // 0-100の範囲で進捗状況を表す
 
 // モデル初期化中のエラーをより詳細に表示するためのデバッグフラグ
 const DEBUG = true;
 
-// 実行環境はWasmに統一（Wasm経由でWebGPUを使用）
-const currentRuntime = 'wasm';
+// 初期化状態を取得する関数
+export function getInitializationStatus(): { isInitializing: boolean; isInitialized: boolean; progress: number } {
+  return { isInitializing, isInitialized, progress: loadingProgress };
+}
 
-/**
- * WebGPUのサポート情報を表示（デバッグ用）
- */
-async function checkWebGPUSupport(): Promise<void> {
-  if (typeof window === "undefined") {
-    return; // SSR環境ではチェックしない
-  }
+// 初期化が完了するまで待機する関数
+export async function waitForInitialization(timeoutMs = 30000): Promise<boolean> {
+  if (isInitialized) return true;
+  if (!isInitializing) return false;
+
+  if (!initPromise) return false;
 
   try {
-    if (!navigator.gpu) {
-      console.log("WebGPUは利用できません。Wasm経由で実行します。");
-      return;
-    }
+    // タイムアウト付きで初期化の完了を待つ
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error("モデル初期化のタイムアウト")), timeoutMs);
+    });
 
-    console.log("WebGPUアダプターをチェック中...");
-    const adapter = await navigator.gpu.requestAdapter();
-
-    if (!adapter) {
-      console.log("WebGPUアダプターを取得できません。Wasm経由で実行します。");
-      return;
-    }
-
-    // アダプターの情報を表示（デバッグ用）
-    if (DEBUG) {
-      const info = await adapter.requestAdapterInfo();
-      console.log("WebGPUアダプター情報:", info);
-    }
-
-    console.log("WebGPUが利用可能です。Wasm経由で使用します。");
+    await Promise.race([initPromise, timeoutPromise]);
+    return isInitialized;
   } catch (error) {
-    console.log("WebGPUの初期化に失敗しました。Wasm経由で実行します。", error);
+    console.error("初期化待機中にエラー:", error);
+    return false;
   }
 }
 
@@ -78,58 +50,115 @@ export async function initWebLLM(modelName: string) {
   }
 
   if (isInitializing) {
-    throw new Error("モデルの初期化がすでに実行中です。");
+    if (initPromise) {
+      console.log("モデルの初期化がすでに実行中です。完了を待機します...");
+      try {
+        await initPromise;
+        return;
+      } catch (error) {
+        console.error("初期化の待機中にエラー:", error);
+        // 初期化に失敗した場合は再試行
+      }
+    } else {
+      throw new Error("モデルの初期化がすでに実行中です。");
+    }
   }
 
+  if (isInitialized && llmEngine) {
+    console.log("モデルはすでに初期化されています。");
+    return;
+  }
+
+  isInitializing = true;
+  isInitialized = false;
+  loadingProgress = 0;
+
+  // 初期化プロセスを追跡するPromiseを作成
+  initPromise = (async () => {
+    try {
+      console.log("Wasm経由でモデルを初期化します...");
+
+      // 指定されたモデルのみを使用
+      const appConfig = {
+        model_list: [
+          {
+            model: "https://huggingface.co/Atotti/TinySwallow-GRPO-TMethod-experimental-q4f32_1-MLC",
+            model_id: modelName,
+            model_lib: webllm.modelLibURLPrefix + webllm.modelVersion + "/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
+          },
+        ],
+      };
+
+      if (DEBUG) {
+        console.log("モデル設定:", JSON.stringify(appConfig, null, 2));
+      }
+
+      const updateEngineInitProgressCallback: InitProgressCallback = (progress) => {
+        // 進捗状況を0-100の範囲に変換
+        if (progress.progress !== undefined) {
+          // 進捗状況を0-100の範囲に変換（0.1刻みで更新）
+          const newProgress = Math.round(progress.progress * 1000) / 10;
+
+          // 進捗状況が変化した場合のみ更新
+          if (newProgress !== loadingProgress) {
+            loadingProgress = newProgress;
+            console.log(`モデル初期化中 - 進捗: ${loadingProgress}%`);
+          }
+        }
+
+        // 進捗状況に応じたメッセージ
+        if (progress.text) {
+          console.log(`初期化ステップ: ${progress.text}`);
+
+          // 特定のステップでの進捗状況の更新
+          if (progress.text.includes('Loading model')) {
+            console.log('モデルファイルをダウンロード中...');
+          } else if (progress.text.includes('Instantiating WebGPU')) {
+            console.log('WebGPUを初期化中...');
+          } else if (progress.text.includes('Loading weights')) {
+            console.log('モデルの重みを読み込み中...');
+          }
+        }
+
+        // 進捗状況が100%に近づいたら初期化完了とみなす
+        if (progress.progress && progress.progress >= 0.99) {
+          loadingProgress = 100;
+          console.log("モデルの初期化がほぼ完了しました。");
+        }
+      };
+
+      // エンジン作成＆モデル読み込み
+      console.log("指定されたモデルの初期化を開始します...");
+      llmEngine = await webllm.CreateMLCEngine(modelName, {
+        appConfig: appConfig,
+        initProgressCallback: updateEngineInitProgressCallback,
+      });
+
+      if (!llmEngine || !llmEngine.chat) {
+        throw new Error("モデルの初期化に失敗しました。");
+      }
+
+      console.log("モデルの初期化が完了しました！");
+      isInitialized = true;
+    } catch (error: unknown) {
+      console.error("モデルの初期化中にエラーが発生:", error);
+      if (DEBUG) {
+        console.log("エラーの詳細:", error instanceof Error ? error.message : String(error));
+      }
+      isInitialized = false;
+      llmEngine = null;
+      throw error;
+    } finally {
+      isInitializing = false;
+    }
+  })();
+
+  // 初期化プロセスの完了を待つ
   try {
-    isInitializing = true;
-
-    // WebGPUサポート情報を表示（デバッグ用）
-    await checkWebGPUSupport();
-    console.log(`実行環境: ${currentRuntime} (Wasm経由でWebGPU使用)`);
-
-    // モデル設定を構築（統一版）
-    const modelConfig = {
-      model: "https://huggingface.co/Atotti/TinySwallow-GRPO-TMethod-experimental-q4f32_1-MLC",
-      model_lib: webllm.modelLibURLPrefix + webllm.modelVersion + "/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
-    };
-    const appConfig = {
-      model_list: [
-        {
-          model: modelConfig.model,
-          model_id: modelName,
-          model_lib: modelConfig.model_lib,
-        },
-      ],
-    };
-
-    if (DEBUG) {
-      console.log("モデル設定:", JSON.stringify(appConfig, null, 2));
-    }
-
-    const updateEngineInitProgressCallback: InitProgressCallback = (progress) => {
-      console.log(`モデル初期化中 (${currentRuntime}):`, progress);
-    };
-
-    // エンジン作成＆モデル読み込み
-    llmEngine = await webllm.CreateMLCEngine(modelName, {
-      appConfig: appConfig,
-      initProgressCallback: updateEngineInitProgressCallback,
-    });
-
-    if (!llmEngine || !llmEngine.chat) {
-      throw new Error("モデルの初期化に失敗しました。");
-    }
-
-    console.log(`モデルの初期化が完了しました！(${currentRuntime})`);
-  } catch (error: unknown) {
-    console.error("モデルの初期化中にエラーが発生:", error);
-    if (DEBUG) {
-      console.log("エラーの詳細:", error instanceof Error ? error.message : String(error));
-    }
+    await initPromise;
+  } catch (error) {
+    console.error("初期化プロセスでエラーが発生:", error);
     throw error;
-  } finally {
-    isInitializing = false;
   }
 }
 
@@ -137,23 +166,23 @@ export async function initWebLLM(modelName: string) {
  * 入力テキストを「高橋メソッド用フォーマット」に変換する
  */
 export async function transformToTakahashiFormat(rawText: string): Promise<string> {
-  if (!llmEngine) {
-    throw new Error("LLM engineが初期化されていません。initWebLLMを先に実行してください。");
+  // 初期化が完了していない場合は待機
+  if (!isInitialized || !llmEngine) {
+    if (isInitializing && initPromise) {
+      console.log("モデルの初期化を待機中...");
+      const initialized = await waitForInitialization();
+      if (!initialized || !llmEngine) {
+        throw new Error("モデルの初期化に失敗しました。ページを再読み込みしてください。");
+      }
+    } else {
+      throw new Error("LLM engineが初期化されていません。initWebLLMを先に実行してください。");
+    }
   }
 
   const systemPrompt = `
-Respond in the following format:
-<reasoning>
-...
-</reasoning>
-<answer>
-- ...
-- ...
-- ...
-...
-</answer>
 あなたは高橋メソッドに基づくプレゼン資料作成のエキスパートです。
 以下のルールに従って、入力された文章を高橋メソッド形式に変換してください：
+
 ###Rules###
 以下のルールを必ず守って出力してください：
 - 1スライドに書けるのは1メッセージのみです。
@@ -181,8 +210,8 @@ ${rawText}
       ],
       temperature: 0.7,
       top_p: 0.95,
-      presence_penalty: 0.5,
-      max_tokens: 1024,
+      presence_penalty: 1.2,
+      max_tokens: 4096,
     });
 
     const content = response.choices[0].message.content?.trim();

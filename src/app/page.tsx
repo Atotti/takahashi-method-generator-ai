@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect, KeyboardEvent } from "react";
-import { Box, Button, Container, TextField, Typography, CircularProgress, IconButton } from "@mui/material";
+import { Box, Button, Container, TextField, Typography, CircularProgress, IconButton, LinearProgress } from "@mui/material";
 import PresentationMode from "../components/PresentationMode";
 
-import { initWebLLM, transformToTakahashiFormat } from "../lib/llmClient";
+import { initWebLLM, transformToTakahashiFormat, getInitializationStatus, waitForInitialization } from "../lib/llmClient";
 import { parseTakahashiOutline, SlideData } from "../lib/parseTakahashi";
 
 const MODEL_NAME = "TinySwallow-GRPO-TMethod-experimental";
@@ -19,43 +19,68 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<'wasm' | null>(null);
 
+  // 進捗状況の状態
+  const [progress, setProgress] = useState(0);
+
   // WebLLM初期化
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    let isMounted = true;
+    let progressInterval: NodeJS.Timeout;
 
     async function initLLM() {
       try {
         setIsLoading(true);
         setError(null);
 
-        // コンソールログを監視してランタイム情報を取得
-        const originalConsoleLog = console.log;
-        console.log = function(...args) {
-          originalConsoleLog.apply(console, args);
+        // 進捗状況を定期的に更新
+        progressInterval = setInterval(() => {
+          if (isMounted) {
+            const status = getInitializationStatus();
+            setProgress(status.progress);
 
-          // ランタイム情報の取得
-          if (args.length > 0 && typeof args[0] === 'string') {
-            if (args[0].includes('実行環境: wasm')) {
-              setRuntime('wasm');
-              setError(null);
+            // 初期化が完了したら更新を停止
+            if (status.isInitialized) {
+              clearInterval(progressInterval);
             }
           }
-        };
+        }, 100);
 
+        // モデル初期化（非同期で実行）
         await initWebLLM(MODEL_NAME);
 
-        // コンソールログを元に戻す
-        console.log = originalConsoleLog;
+        // 初期化状態を確認
+        const status = getInitializationStatus();
+        if (isMounted) {
+          if (status.isInitialized) {
+            setError(null);
+            setIsLoading(false);
+            setProgress(100);
+          } else {
+            setError("モデルの初期化に失敗しました。ページを再読み込みしてください。");
+            setIsLoading(false);
+          }
+        }
       } catch (err) {
         console.error("LLM初期化エラー:", err);
         const errorMessage = err instanceof Error ? err.message : "不明なエラーが発生しました";
-        setError(errorMessage);
-      } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setError(errorMessage);
+          setIsLoading(false);
+        }
       }
     }
 
     initLLM();
+
+    // クリーンアップ関数
+    return () => {
+      isMounted = false;
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+    };
   }, []);
 
   // LLM変換ボタン
@@ -69,7 +94,41 @@ export default function HomePage() {
     try {
       setIsLoading(true);
       setError(null);
+
+      // 初期化状態を確認
+      const status = getInitializationStatus();
+      if (!status.isInitialized && status.isInitializing) {
+        // 初期化中の場合は完了を待機
+        setError("モデルの初期化中です。しばらくお待ちください...");
+
+        // 初期化完了を待機（最大30秒）
+        const initialized = await waitForInitialization(30000);
+        if (!initialized) {
+          throw new Error("モデルの初期化がタイムアウトしました。ページを再読み込みしてください。");
+        }
+
+        setError(null);
+      } else if (!status.isInitialized) {
+        // 再初期化を試みる
+        console.log("モデルが初期化されていません。初期化を試みます...");
+        try {
+          await initWebLLM(MODEL_NAME);
+
+          // 再度状態を確認
+          const newStatus = getInitializationStatus();
+          if (!newStatus.isInitialized) {
+            throw new Error("モデルが初期化されていません。ページを再読み込みしてください。");
+          }
+          console.log("モデルの初期化が完了しました。変換を開始します。");
+        } catch (initErr) {
+          console.error("モデル再初期化エラー:", initErr);
+          throw new Error("モデルの初期化に失敗しました。ページを再読み込みしてください。");
+        }
+      }
+
+      console.log("テキスト変換を開始します...");
       const result = await transformToTakahashiFormat(text);
+      console.log("テキスト変換が完了しました。");
       setOutlineText(result);
     } catch (err) {
       console.error("変換エラー:", err);
@@ -139,6 +198,55 @@ export default function HomePage() {
             </Typography>
           </Box>
         )}
+        {/* モデル初期化中の大きなローディング表示 */}
+        {isLoading && !error && (
+          <Box sx={{ mb: 4, p: 4, backgroundColor: "#e3f2fd", borderRadius: 2, textAlign: "center" }}>
+            <CircularProgress size={80} thickness={5} sx={{ mb: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              モデルを初期化しています
+            </Typography>
+
+            {/* 進捗状況バー */}
+            <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
+              <Box sx={{ position: 'relative', display: 'inline-flex', width: '100%' }}>
+                <Box sx={{ width: '100%', mr: 1 }}>
+                  <LinearProgress
+                    variant="determinate"
+                    value={progress}
+                    sx={{ height: 10, borderRadius: 5 }}
+                  />
+                </Box>
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    right: 0,
+                    top: -5,
+                    color: 'text.secondary',
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  {`${Math.round(progress)}%`}
+                </Box>
+              </Box>
+            </Box>
+
+            <Typography variant="body1" color="text.secondary">
+              初回の読み込みには時間がかかります。しばらくお待ちください...
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              (初期化中でもテキストの入力は可能です)
+            </Typography>
+
+            {/* コンソールログ表示 */}
+            <Box sx={{ mt: 3, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1, textAlign: 'left', maxHeight: '150px', overflow: 'auto' }}>
+              <Typography variant="caption" component="div" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+                {`モデル初期化中 - 進捗: ${progress}%`}
+              </Typography>
+            </Box>
+          </Box>
+        )}
+
         {/* エラーメッセージ */}
         {error && (
           <Box sx={{ mb: 2, p: 2, backgroundColor: "#ffebee", borderRadius: 1 }}>
@@ -181,7 +289,8 @@ export default function HomePage() {
             variant="contained"
             onClick={handleTransform}
             disabled={isLoading || !freeText.trim()}
-            startIcon={isLoading && <CircularProgress size={20} color="inherit" />}
+            startIcon={isLoading && <CircularProgress size={24} color="inherit" />}
+            sx={{ py: 1.5, px: 3, fontSize: '1rem' }}
           >
             {isLoading ? "変換中..." : "LLMで高橋メソッド用に変換"}
           </Button>
