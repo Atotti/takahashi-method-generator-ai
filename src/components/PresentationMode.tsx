@@ -26,28 +26,57 @@ export default function PresentationMode({
   // フォントサイズの動的調整
   useEffect(() => {
     const calculateOptimalFontSize = () => {
+      const container = textContainerRef.current;
+      if (!container) return;
+
       const text = slides[currentIndex]?.text || '';
-      const lines = text.split('\n');
-      const maxLineLength = Math.max(...lines.map(line => Array.from(line).length));
 
-      // 基本のフォントサイズを設定（ビューポート幅の30%）
-      let baseFontSize = 30;
+      // コンテナの高さと幅を取得
+      const containerHeight = container.clientHeight;
+      const containerWidth = container.clientWidth;
 
-      // 文字数に応じて調整（より緩やかに）
-      if (maxLineLength > 5) {
-        // 5文字以上の場合、文字数に応じて徐々に小さくする
-        baseFontSize = Math.max(20, 30 - (maxLineLength - 5) * 0.8);
+      // 一時的なテスト要素を作成して実際の表示サイズをチェック
+      const testElement = document.createElement('div');
+      testElement.style.position = 'absolute';
+      testElement.style.visibility = 'hidden';
+      testElement.style.width = `${containerWidth}px`;
+      testElement.style.whiteSpace = 'pre-wrap';
+      testElement.style.wordBreak = 'normal';
+      testElement.style.textAlign = 'center';
+      testElement.textContent = text;
+      document.body.appendChild(testElement);
+
+      // 二分探索で最適なサイズを見つける
+      let min = 10;  // 最小フォントサイズ（vw）
+      let max = 40;  // 最大フォントサイズ（vw）
+      let optimal = min;
+
+      while (min <= max) {
+        const mid = Math.floor((min + max) / 2);
+        const vwToPx = (mid * window.innerWidth) / 100;
+        testElement.style.fontSize = `${vwToPx}px`;
+
+        if (testElement.offsetHeight <= containerHeight * 0.9 &&
+            testElement.offsetWidth <= containerWidth * 0.9) {
+          optimal = mid;
+          min = mid + 1;
+        } else {
+          max = mid - 1;
+        }
       }
 
-      setFontSize(`${baseFontSize}vw`);
+      document.body.removeChild(testElement);
+      setFontSize(`${optimal}vw`);
     };
 
     calculateOptimalFontSize();
 
-    window.addEventListener('resize', calculateOptimalFontSize);
-    return () => {
-      window.removeEventListener('resize', calculateOptimalFontSize);
-    };
+    const resizeObserver = new ResizeObserver(calculateOptimalFontSize);
+    if (textContainerRef.current) {
+      resizeObserver.observe(textContainerRef.current);
+    }
+
+    return () => resizeObserver.disconnect();
   }, [currentIndex, slides]);
 
   // フルスクリーン状態の監視
