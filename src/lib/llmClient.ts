@@ -82,7 +82,7 @@ export async function initWebLLM(modelName: string) {
       const appConfig = {
         model_list: [
           {
-            model: "https://huggingface.co/Atotti/TinySwallow-GRPO-TMethod-experimental-q4f32_1-MLC",
+            model: "https://huggingface.co/Atotti/TinySwallow-GRPO-TakahashiMethod-v0.2-q4f32_1-MLC",
             model_id: modelName,
             model_lib: webllm.modelLibURLPrefix + webllm.modelVersion + "/Qwen2-1.5B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
           },
