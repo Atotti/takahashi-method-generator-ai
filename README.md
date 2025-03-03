@@ -26,11 +26,10 @@
 
 Takahashi Method Generatorは、シンプルで効果的な高橋メソッドプレゼンテーションを簡単に作成できるWebアプリケーションです。テキストを入力するだけで、インパクトのあるプレゼンテーションスライドを自動生成します。
 
-![Demo1](imgs/image1.png)
+|Step1: 原稿テキストを入力|Step2: AIがスライドを生成|Step3: プレゼンテーションモードで即発表|
+|-|-|-|
+|![Demo1](imgs/image1.png)|![Demo2](imgs/image2.png)|![Demo3](imgs/image3.png)|
 
-![Demo2](imgs/image2.png)
-
-![Demo3](imgs/image3.png)
 
 ## 特徴
 
