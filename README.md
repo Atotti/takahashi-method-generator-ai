@@ -14,7 +14,7 @@
 
 ## 概要
 
-Takahashi Method Generatorは、シンプルで効果的な[高橋メソッド](https://en.wikipedia.org/wiki/Takahashi_method)プレゼンテーションを簡単に作成できるWebアプリケーションです。テキストを入力するだけで、インパクトのあるプレゼンテーションスライドを自動生成します。
+Takahashi Method Generatorは、シンプルで効果的な高橋メソッドプレゼンテーションを簡単に作成できるWebアプリケーションです。テキストを入力するだけで、インパクトのあるプレゼンテーションスライドを自動生成します。
 
 ![Demo1](imgs/image1.png)
 
@@ -41,20 +41,11 @@ Takahashi Method Generatorは、シンプルで効果的な[高橋メソッド](
 ## 開発
 
 ```bash
-# リポジトリのクローン
-git clone https://github.com/yourusername/takahashi-method-generator.git
-
 # 依存関係のインストール
 npm install
 
 # 開発サーバーの起動
 npm run dev
-
-# ビルド
-npm run build
-
-# 本番サーバーの起動
-npm run start
 ```
 
 ## 技術スタック
