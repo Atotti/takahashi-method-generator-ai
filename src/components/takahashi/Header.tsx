@@ -43,7 +43,7 @@ export default function Header({ runtime }: HeaderProps) {
                 display: { xs: 'none', sm: 'block' }
               }}
             >
-              高橋メソッド × WebLLM
+              高橋メソッド × WebLLM Demo
             </Typography>
             <Typography
               variant="h6"
@@ -58,6 +58,48 @@ export default function Header({ runtime }: HeaderProps) {
             >
               高橋メソッド
             </Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', ml: 2 }}>
+              <Chip
+                label="WebGPU"
+                size="small"
+                sx={{
+                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                  color: 'primary.main',
+                  fontSize: '0.75rem',
+                  height: '24px'
+                }}
+              />
+              <Chip
+                label="WebAssembly"
+                size="small"
+                sx={{
+                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                  color: 'primary.main',
+                  fontSize: '0.75rem',
+                  height: '24px'
+                }}
+              />
+              <Chip
+                label="GROP"
+                size="small"
+                sx={{
+                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                  color: 'primary.main',
+                  fontSize: '0.75rem',
+                  height: '24px'
+                }}
+              />
+              <Chip
+                label="SLM"
+                size="small"
+                sx={{
+                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                  color: 'primary.main',
+                  fontSize: '0.75rem',
+                  height: '24px'
+                }}
+              />
+            </Box>
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

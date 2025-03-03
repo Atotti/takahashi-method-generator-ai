@@ -42,6 +42,43 @@ export default function HeroSection() {
         AIを活用して、あなたのテキストを<span className="accent-gradient-text" style={{ fontWeight: 700 }}>インパクトのある高橋メソッド形式</span>のプレゼンテーションに変換します
       </Typography>
 
+      <Typography
+        variant="h6"
+        sx={{
+          maxWidth: '800px',
+          mx: 'auto',
+          mb: 2,
+          fontSize: { xs: '0.8rem', md: '1rem' },
+          '& a': {
+            color: 'primary.main',
+            textDecoration: 'none',
+            fontWeight: 600,
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              textDecoration: 'underline',
+              opacity: 0.8
+            }
+          }
+        }}
+      >
+        <a href="https://huggingface.co/Atotti/TinySwallow-GRPO-TakahashiMethod-v0.2-q4f32_1-MLC">独自にトレーニングした1.5BのローカルLLM</a>がブラウザ内で推論します
+      </Typography>
+
+      <Typography
+        variant="body2"
+        sx={{
+          maxWidth: '800px',
+          mx: 'auto',
+          mb: 4,
+          color: 'text.secondary',
+          fontSize: { xs: '0.75rem', md: '0.875rem' },
+          opacity: 0.8,
+          fontStyle: 'italic'
+        }}
+      >
+        ※ これは特定タスクにチューニングされたローカルLLM活用の可能性を探る試験的なサービスです
+      </Typography>
+
       <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
         <Chip
           icon={<AutoAwesomeIcon fontSize="small" />}
