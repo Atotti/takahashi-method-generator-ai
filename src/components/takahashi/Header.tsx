@@ -74,7 +74,7 @@ export default function Header({ runtime }: HeaderProps) {
               <IconButton
                 color="primary"
                 component="a"
-                href="https://github.com/Atotti/takahashi-method-generator"
+                href="https://github.com/Atotti/ai-slide-generator"
                 target="_blank"
                 rel="noopener noreferrer"
               >
