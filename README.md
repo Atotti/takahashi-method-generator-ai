@@ -10,6 +10,16 @@
     <a href="#開発">開発</a> •
     <a href="#ライセンス">ライセンス</a>
   </p>
+
+  <a href='https://ai-slide-generator.ayutaso.com/'><img src='https://img.shields.io/badge/License-MIT-yellow.svg' alt='License: MIT'></a>
+  <a href='https://ai-slide-generator.ayutaso.com/'><img src='https://img.shields.io/badge/Project-WebSite-blue' alt='Web'></a>
+  <a href='https://huggingface.co/spaces/H-Liu1997/TANGO'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-blue'></a>
+  <br />
+  ![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?logo=typescript&logoColor=white)
+  ![Next JS](https://img.shields.io/badge/Next-black?logo=next.js&logoColor=white)
+  ![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?logo=tailwind-css&logoColor=white)
+  ![Vercel](https://img.shields.io/badge/vercel-%23000000.svg?logo=vercel&logoColor=white)
+
 </div>
 
 ## 概要
