@@ -30,19 +30,19 @@ export default function OutlineEditStep({
   onGenerateSlides,
   onBack
 }: OutlineEditStepProps) {
-  const [reasoning, setReasoning] = useState<string>("");
-  const [answer, setAnswer] = useState<string>("");
+  // 初期値を設定
+  const { reasoning: initialReasoning, answer: initialAnswer } = parseReasoningAndAnswer(outlineText);
+  const [reasoning] = useState<string>(initialReasoning);
+  const [answer, setAnswer] = useState<string>(initialAnswer);
 
-  // outlineTextが変更されたときに<reasoning>と<answer>タグを分離
-  useEffect(() => {
-    const { reasoning, answer } = parseReasoningAndAnswer(outlineText);
-    setReasoning(reasoning);
-    setAnswer(answer);
-  }, [outlineText]);
+  // handleAnswerChangeでsetAnswerも呼び出す
 
-  // answerが変更されたときにoutlineTextを更新
+  // answerの変更を処理
   const handleAnswerChange = (newAnswer: string) => {
-    // reasoningがある場合は<reasoning>タグを保持し、answerのみを更新
+    // ローカルのanswerを更新
+    setAnswer(newAnswer);
+
+    // outlineTextも更新
     if (reasoning) {
       setOutlineText(`<reasoning>\n${reasoning}\n</reasoning>\n<answer>\n${newAnswer}\n</answer>`);
     } else {
@@ -113,8 +113,6 @@ export default function OutlineEditStep({
           value={answer}
           onChange={(e) => handleAnswerChange(e.target.value)}
           disabled={isLoading}
-          error={!answer.includes('-')}
-          helperText={!answer.includes('-') ? "高橋メソッド形式で入力してください" : ""}
           sx={{
             mb: 3,
             '& .MuiOutlinedInput-root': {
@@ -139,7 +137,7 @@ export default function OutlineEditStep({
             variant="contained"
             color="primary"
             onClick={onGenerateSlides}
-            disabled={isLoading || !answer.trim() || !answer.includes('-')}
+            disabled={isLoading || !answer.trim()}
             endIcon={<ArrowForwardIcon />}
             sx={{
               px: 4,
