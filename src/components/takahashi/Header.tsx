@@ -80,7 +80,7 @@ export default function Header({ runtime }: HeaderProps) {
                 }}
               />
               <Chip
-                label="GROP"
+                label="GRPO"
                 size="small"
                 sx={{
                   backgroundColor: 'rgba(37, 99, 235, 0.1)',

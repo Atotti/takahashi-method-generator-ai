@@ -61,7 +61,7 @@ export default function HeroSection() {
           }
         }}
       >
-        <a href="https://huggingface.co/Atotti/TinySwallow-GRPO-TakahashiMethod-v0.2-q4f32_1-MLC">独自にトレーニングした1.5BのローカルLLM</a>がブラウザ内で推論します
+        <a href="https://huggingface.co/Atotti/TinySwallow-GRPO-TakahashiMethod-v0.2-q4f32_1-MLC">独自にトレーニングされた1.5BのローカルLLM</a>がブラウザ内で推論します
       </Typography>
 
       <Typography

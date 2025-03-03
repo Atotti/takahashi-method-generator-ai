@@ -61,24 +61,7 @@ export default function LoadingOverlay({ progress }: LoadingOverlayProps) {
           初回の読み込みには時間がかかります。しばらくお待ちください...
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          (初期化中でもテキストの入力は可能です)
         </Typography>
-
-        {/* コンソールログ表示 */}
-        <Box sx={{
-          mt: 3,
-          p: 2,
-          backgroundColor: 'rgba(0, 0, 0, 0.03)',
-          borderRadius: 2,
-          textAlign: 'left',
-          maxHeight: '150px',
-          overflow: 'auto',
-          border: '1px solid rgba(0, 0, 0, 0.05)'
-        }}>
-          <Typography variant="caption" component="div" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-            {`モデル初期化中 - 進捗: ${progress}%`}
-          </Typography>
-        </Box>
       </CardContent>
     </Card>
   );
